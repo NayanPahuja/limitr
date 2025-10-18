@@ -85,7 +85,7 @@ A background watcher monitors the configuration file for changes, validates the 
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/your-repo/limitr.git
+   git clone https://github.com/NayanPahuja/limitr.git
    cd limitr
    ```
 
@@ -105,11 +105,29 @@ A background watcher monitors the configuration file for changes, validates the 
 
    The gRPC server starts on the configured port.
 
-*(Docker support planned for a later milestone.)*
+### Using Docker-Compose
+
+**Prerequisites**  
+* Docker
+
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/NayanPahuja/limitr.git
+   cd limitr/example/deployment
+   ```
+3. Run:
+
+   ```bash
+   docker-compose -f docker-compose-example.yaml -d
+   ```
+
+   The gRPC server starts on the configured port.
+
 
 ## Algorithm Reference
 
-The rate limiting logic follows the **Multi-Rate Leaky Bucket Algorithm** (Microsoft’s implementation), enforcing multiple limits per key while storing state efficiently in Redis using MessagePack serialization.
+The rate limiting logic follows the **Multi-Rate Leaky Bucket Algorithm**, enforcing multiple limits per key while storing state efficiently in Redis using MessagePack serialization.
 
 ## Project Milestones
 
