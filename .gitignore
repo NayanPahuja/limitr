@@ -15,6 +15,7 @@ Cargo.lock
 # Operating System files
 Thumbs.db
 
+
 # Sensitive files (if applicable, add more as needed)
- .env
- config.toml.local
+.env
+config.toml.local
