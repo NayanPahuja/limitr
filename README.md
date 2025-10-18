@@ -125,5 +125,5 @@ The rate limiting logic follows the **Multi-Rate Leaky Bucket Algorithm** (Micro
 
 ## License
 
-This project is licensed under the **Apache License V2**.  
+This project is licensed under the **Apache 2.0 License**.  
 See the [LICENSE](./LICENSE) file for details.
