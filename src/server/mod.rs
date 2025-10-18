@@ -3,8 +3,11 @@ pub mod handler;
 use tonic::transport::Server;
 use tonic_reflection::server::Builder as ReflectionBuilder;
 use tracing::info;
+use std::sync::Arc;
 
 use crate::errors::Result;
+use crate::config::ConfigCache;
+use crate::limiter::RateLimiter;
 
 /// gRPC server configuration
 pub struct ServerConfig {
@@ -38,7 +41,11 @@ impl ServerConfig {
 }
 
 /// Start the gRPC server with reflection support
-pub async fn start_server(config: ServerConfig) -> Result<()> {
+pub async fn start_server<L: RateLimiter + 'static>(
+    config: ServerConfig,
+    limiter: Arc<L>,
+    config_cache: Arc<ConfigCache>,
+) -> Result<()> {
     let addr = config.addr().parse()
         .map_err(|e| crate::errors::RateLimitError::InternalError(
             format!("Invalid server address: {}", e)
@@ -46,7 +53,7 @@ pub async fn start_server(config: ServerConfig) -> Result<()> {
 
     info!("Starting gRPC server on {}", addr);
 
-    let rate_limiter_service = handler::RateLimiterServiceImpl::new();
+    let rate_limiter_service = handler::RateLimiterServiceImpl::new(limiter, config_cache);
 
     // Load the file descriptor set for reflection
     let file_descriptor_set = include_bytes!("../gen/limitr_descriptor.bin");

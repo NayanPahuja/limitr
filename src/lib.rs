@@ -1,5 +1,7 @@
-mod server;
-mod errors;
+pub mod server;
+pub mod redis;
+pub mod limiter;
+pub mod errors;
 pub mod config;
 pub mod generated {
     // absolute path relative to crate root:

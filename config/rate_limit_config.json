@@ -1,0 +1,42 @@
+{
+  "domains": [
+    {
+      "domain": "api.example.com",
+      "prefix": "user",
+      "policies": [
+        {
+          "name": "per_minute",
+          "flow_rate_per_second": 0.5,
+          "burst_capacity": 100
+        }
+      ]
+    },
+    {
+      "domain": "api.example.com",
+      "prefix": "admin",
+      "policies": [
+        {
+          "name": "per_second",
+          "flow_rate_per_second": 100.0,
+          "burst_capacity": 1000
+        },
+        {
+          "name": "per_minute",
+          "flow_rate_per_second": 166.666666,
+          "burst_capacity": 10000
+        }
+      ]
+    },
+    {
+      "domain": "internal.example.com",
+      "prefix": "service",
+      "policies": [
+        {
+          "name": "per_second",
+          "flow_rate_per_second": 1000.0,
+          "burst_capacity": 5000
+        }
+      ]
+    }
+  ]
+}

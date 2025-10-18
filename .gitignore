@@ -1,4 +1,5 @@
 # Rust Cargo files
+/dev
 /target/
 Cargo.lock
 */gen
