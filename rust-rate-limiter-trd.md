@@ -1,4 +1,3 @@
-g
 # Rust gRPC Rate Limiting Service - Technical Design Document
 
 
@@ -35,7 +34,7 @@ The system consists of five primary layers:
 
 2. **Business Logic Layer**: Implements rate limiting decisions and configuration management.
 
-3. **Storage Layer**: Redis/Valkey distributed state management using lua script. 
+3. **Storage Layer**: Redis/Valkey distributed state management using lua script.
 
 4. **Configuration Layer**: Dynamic configuration loading and watching
 
@@ -414,23 +413,23 @@ local limiting_index = 0         -- which limit was most restrictive
 for i = 1, #ARGV / 2 do
     local flow = tonumber(ARGV[2 * i])       -- leak rate (tokens per second)
     local burst = tonumber(ARGV[2 * i + 1])  -- max capacity for this rate
-    
+
     -- Leak tokens that should have leaked since last update
     local previous_level = token_levels[i] or 0
     local leaked_level = math.max(0, previous_level - (delta * flow))
-    
+
     -- Add requested cost (tokens)
     next_levels[i] = leaked_level + cost
-    
+
     -- Calculate how much space remains in this bucket
     local remaining = burst - next_levels[i]
-    
+
     -- Track the smallest remaining capacity (the limiting rate)
     if remaining < free_capacity then
         free_capacity = remaining
         limiting_index = i
     end
-    
+
     -- Estimate TTL: how long until this bucket fully leaks
     expire_time = math.max(expire_time, math.ceil(math.max(burst, next_levels[i]) / flow))
 end
@@ -440,16 +439,16 @@ if free_capacity >= 0 then
     -- ✅ Allowed request:
     -- Store updated state: (time, deny_count, new_levels)
     redis.call('setex', key, expire_time, cmsgpack.pack(now, 0, next_levels))
-    
+
     -- Return success, remaining capacity, and which limit applied
     return { 1, tostring(free_capacity), limiting_index }
 else
     -- ❌ Denied request:
     deny_count = deny_count + cost
-    
+
     -- Keep the previous levels but update deny count and timestamp
     redis.call('setex', key, expire_time, cmsgpack.pack(now, deny_count, token_levels))
-    
+
     -- Return failure, total denied tokens, and limiting rate index
     return { 0, tostring(deny_count), limiting_index }
 end
@@ -911,7 +910,7 @@ Implement standard gRPC health checking service
 
 - ✓ GRPC Server Up
 
-- ✓ Config loaded successfully  
+- ✓ Config loaded successfully
 
 - ✓ Redis reachable.
 
@@ -919,7 +918,7 @@ Implement standard gRPC health checking service
 ```rust
 async fn check_redis_health(pool: &Pool) -> HealthStatus {
     let start = Instant::now();
-    
+
     match pool.get().await {
         Ok(mut conn) => {
             match redis::cmd("PING").query_async(&mut *conn).await {
@@ -987,7 +986,7 @@ async fn check_redis_health(pool: &Pool) -> HealthStatus {
 
 1. **Redis Network Latency**:
    - **Problem**: Each request requires Redis round-trip
-   - **Mitigation**: 
+   - **Mitigation**:
      - Deploy Redis close to service (same AZ/region)
      - Use Redis pipelining for batched operations
      - Consider Redis Cluster for geographic distribution
@@ -1114,7 +1113,7 @@ trait RateLimiter: Send + Sync {
         config: &RateConfig,
         tokens: u32,
     ) -> Result<LimitDecision, RateLimitError>;
-    
+
     async fn get_bucket_status(
         &self,
         domain: &str,
@@ -1171,12 +1170,12 @@ The Microsoft implementation is used directly (see Section 5.3 for full script).
    ```rust
    // Parse script response
    let result: Vec<redis::Value> = script.invoke_async(&mut conn).await?;
-   
+
    match &result[..] {
        [redis::Value::Int(allowed), redis::Value::Data(capacity_bytes), redis::Value::Int(index)] => {
            let capacity_str = std::str::from_utf8(capacity_bytes)?;
            let remaining = capacity_str.parse::<f64>()?;
-           
+
            BucketResponse {
                allowed: *allowed == 1,
                remaining_capacity: remaining,
@@ -1203,13 +1202,13 @@ impl RedisClient {
     pub async fn new(config: &RedisConfig) -> Result<Self> {
         // Create connection pool
         let pool = create_pool(config).await?;
-        
+
         // Load Lua script
         let script_sha = load_script(&pool).await?;
-        
+
         Ok(Self { pool, script_sha })
     }
-    
+
     pub async fn check_leaky_bucket(
         &self,
         key: &str,
@@ -1220,17 +1219,17 @@ impl RedisClient {
         // Get connection from pool
         let mut conn = self.pool.get().await
             .map_err(|e| RateLimitError::RedisConnectionError(e))?;
-        
+
         // Current timestamp in milliseconds
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)?
             .as_millis() as i64;
-        
+
         // TTL = 2 × (capacity / leak_rate)
         let ttl = ((2.0 * capacity as f64) / leak_rate) as i64;
-        
+
         // Execute Lua script
-        let result: Vec<i64> = redis::Script::new(&format!("return redis.call('EVALSHA', '{}', 1, KEYS[1], ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5])", 
+        let result: Vec<i64> = redis::Script::new(&format!("return redis.call('EVALSHA', '{}', 1, KEYS[1], ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5])",
             self.script_sha))
             .key(key)
             .arg(now)
@@ -1241,7 +1240,7 @@ impl RedisClient {
             .invoke_async(&mut *conn)
             .await
             .map_err(|e| RateLimitError::RedisCommandError(e))?;
-        
+
         Ok(BucketResponse {
             allowed: result[0] == 1,
             remaining_capacity: result[1],
@@ -1254,12 +1253,12 @@ impl RedisClient {
 async fn load_script(pool: &Pool) -> Result<String> {
     let script_content = include_str!("../scripts/leaky_bucket_multirate.lua");
     let mut conn = pool.get().await?;
-    
+
     let sha: String = redis::Script::new(script_content)
         .prepare_invoke()
         .load_async(&mut *conn)
         .await?;
-    
+
     tracing::info!("Loaded Lua script with SHA: {}", sha);
     Ok(sha)
 }
@@ -1315,10 +1314,10 @@ impl CircuitBreaker {
             timeout,
         }
     }
-    
+
     pub fn is_open(&self) -> bool {
         let state = self.state.load(Ordering::Relaxed);
-        
+
         if state == OPEN {
             // Check if timeout has elapsed
             if let Some(last_failure) = *self.last_failure_time.lock().unwrap() {
@@ -1330,23 +1329,23 @@ impl CircuitBreaker {
             }
             return true;
         }
-        
+
         false
     }
-    
+
     pub fn record_success(&self) {
         self.failure_count.store(0, Ordering::Relaxed);
         self.state.store(CLOSED, Ordering::Relaxed);
     }
-    
+
     pub fn record_failure(&self) {
         let failures = self.failure_count.fetch_add(1, Ordering::Relaxed) + 1;
-        
+
         if failures >= self.threshold {
             self.trip();
         }
     }
-    
+
     fn trip(&self) {
         self.state.store(OPEN, Ordering::Relaxed);
         *self.last_failure_time.lock().unwrap() = Some(Instant::now());
@@ -1372,7 +1371,7 @@ The Redis-backed leaky bucket implementation provides a robust foundation for pr
 ### Success Criteria
 
 The implementation will be considered successful when it achieves:
- 
+
 - Able to work as above.
 
 ### Next Steps
@@ -1380,6 +1379,6 @@ The implementation will be considered successful when it achieves:
 1. Review and approve this design document
 2. Set up project structure and dependencies
 3. Implement Code in phases (Core Implementation)
-4. Have Milestones. 
+4. Have Milestones.
 5. Like setup proto and rpc server. then use them and log.
 6. Setup redis and use script to make a key.
