@@ -1,0 +1,90 @@
+syntax = "proto3";
+
+package limitr.v1;
+
+// Main Rate Limiter Service
+service RateLimiterService {
+  // Check if request is allowed and consume tokens
+  rpc ConsumeAndCheckLimit(CheckRequest) returns (CheckResponse);
+
+  // Get current configuration (for observability)
+  rpc GetCurrentConfig(ConfigRequest) returns (ConfigResponse);
+
+  // Get bucket status without consuming tokens
+  rpc GetBucketStatus(StatusRequest) returns (StatusResponse);
+
+  // Health check endpoint
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+// Request to check and consume rate limit
+message CheckRequest {
+  optional string domain = 1;    // Domain name (defaults to "default" if not provided)
+  string limit_key = 2;          // Unique identifier for the rate limit bucket
+  optional int32 cost = 3;       // Number of tokens to consume (default: 1)
+}
+
+// Response from rate limit check
+message CheckResponse {
+  bool allowed = 1;                      // Whether the request is allowed
+  double remaining_capacity = 2;         // Remaining capacity (can be negative if denied)
+  int32 limiting_rate_index = 3;         // Which rate policy was most restrictive
+  int64 deny_count = 4;                  // Total tokens denied (only when allowed=false)
+}
+
+// Request to get current configuration
+message ConfigRequest {}
+
+// Response with current configuration
+message ConfigResponse {
+  repeated DomainConfig configs = 1;
+}
+
+// Domain-specific configuration
+message DomainConfig {
+  string domain = 1;
+  string prefix_key = 2;
+  repeated RatePolicy policies = 3;  // Multiple rate policies (per-second, per-minute, etc.)
+}
+
+// Individual rate policy (flow rate and burst capacity)
+message RatePolicy {
+  double flow_rate_per_second = 1;  // Leak rate (tokens per second)
+  int64 burst_capacity = 2;          // Maximum bucket capacity
+  string name = 3;                   // Optional name (e.g., "per_second", "per_minute")
+}
+
+// Request to get bucket status
+message StatusRequest {
+  optional string domain = 1;
+  string limit_key = 2;
+}
+
+// Response with bucket status
+message StatusResponse {
+  repeated BucketLevel levels = 1;      // Status of each rate policy bucket
+  int64 last_update_timestamp = 2;      // Last update time (Unix timestamp)
+  int64 deny_count = 3;                 // Total accumulated denied tokens
+}
+
+// Status of individual bucket (per policy)
+message BucketLevel {
+  double current_level = 1;        // Current token level in bucket
+  double flow_rate = 2;            // Leak rate for this policy
+  int64 burst_capacity = 3;        // Maximum capacity
+  double remaining_capacity = 4;   // Available capacity
+}
+
+// Health check request
+message HealthCheckRequest {}
+
+// Health check response
+message HealthCheckResponse {
+  enum ServingStatus {
+    UNKNOWN = 0;
+    SERVING = 1;
+    NOT_SERVING = 2;
+  }
+  ServingStatus status = 1;
+  string message = 2;
+}

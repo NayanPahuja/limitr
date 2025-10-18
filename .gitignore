@@ -1,7 +1,9 @@
 # Rust Cargo files
 /target/
 Cargo.lock
-
+*/gen
+/src/gen/*.rs
+!src/gen/mod.rs
 # IDE/Editor specific files
 .idea/
 .vscode/

@@ -4,3 +4,51 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+# gRPC and Protocol Buffers
+tonic = "0.14"
+prost = "0.14"
+prost-types = "0.14"
+
+# Async runtime
+tokio = { version = "1.35", features = ["full"] }
+
+# Redis client and connection pooling
+redis = { version = "0.32", features = ["tokio-comp", "connection-manager", "script"] }
+deadpool-redis = "0.22"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rmp-serde = "1.1"  # MessagePack for Redis state
+
+# Configuration and file watching
+notify = "8.2"
+
+# Logging and tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Error handling
+thiserror = "2.0"
+anyhow = "1.0"
+
+# Utilities
+tokio-stream = "0.1"
+dashmap = "6.0"  # Concurrent HashMap for config storage
+tonic-build = "0.14"
+protoc-gen-prost = "0.4.0"
+tonic-prost = "0.14.2"
+tonic-reflection = "0.14.2"
+
+
+[build-dependencies]
+tonic-prost-build = "0.14"
+tonic-build = "0.14"
+
+[[bin]]
+name = "limitr-server"
+path = "src/main.rs"
+
+[lib]
+name = "limitr"
+path = "src/lib.rs"

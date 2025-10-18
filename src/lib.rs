@@ -1,0 +1,10 @@
+mod server;
+mod errors;
+pub mod generated {
+    // absolute path relative to crate root:
+    include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gen/limitr.v1.rs"));
+}
+
+// Re-export commonly used types
+pub use errors::{RateLimitError, Result};
+pub use server::{ServerConfig, start_server};
