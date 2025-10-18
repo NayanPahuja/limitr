@@ -1,9 +1,12 @@
 use limitr::{ServerConfig};
 use limitr::config::loader::{load_config, build_config_cache};
+use limitr::config::watcher::{watch_config_file};
 use limitr::redis::pool::create_redis_pool;
 use limitr::redis::client::RedisClientImpl;
 use limitr::limiter::leaky_bucket::LeakyBucketLimiter;
 use std::sync::Arc;
+use std::path::PathBuf; // NEW: Import PathBuf
+use arc_swap::ArcSwap; // NEW: Import ArcSwap
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
@@ -25,10 +28,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("Configuration loaded successfully!");
 
     // Build configuration cache
-    let config_cache = build_config_cache(&app_config);
-    let config_cache = Arc::new(config_cache);
-    tracing::info!("Configuration cache built with {} domains", 
+    let initial_cache = build_config_cache(&app_config);
+    // CHANGED: Wrap the cache in ArcSwap to allow for hot-reloading
+    let config_cache = Arc::new(ArcSwap::new(Arc::new(initial_cache)));
+    tracing::info!("Configuration cache built with {} domains",
         app_config.rate_limits.domains.len());
+
+    // NEW: Spawn the configuration watcher as a background task
+    let config_path_str = std::env::var("RATE_LIMIT_CONFIG")
+        .unwrap_or_else(|_| "config/rate_limits.json".to_string());
+    let watcher_cache_clone = Arc::clone(&config_cache);
+
+    tokio::spawn(async move {
+        tracing::info!("Starting configuration watcher for '{}'", &config_path_str);
+        let path = PathBuf::from(config_path_str);
+        if let Err(e) = watch_config_file(path, watcher_cache_clone).await {
+            tracing::error!("Configuration watcher failed and has terminated: {}", e);
+        }
+    });
+    // END NEW
 
     // Create Redis connection pool
     tracing::info!("Initializing Redis connection pool...");
@@ -51,6 +69,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("Server will listen on: {}", server_config.addr());
 
     // Start the gRPC server
+    // CHANGED: Pass the new Arc<ArcSwap<ConfigCache>> type
     limitr::server::start_server(server_config, limiter, config_cache).await?;
 
     Ok(())

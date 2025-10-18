@@ -42,6 +42,7 @@ tonic-prost = "0.14.2"
 tonic-reflection = "0.14.2"
 once_cell = "1.21.3"
 deadpool = "0.12.3"
+arc-swap = "1.7.1"
 
 
 [build-dependencies]

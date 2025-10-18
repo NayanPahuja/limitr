@@ -1,5 +1,6 @@
 pub mod handler;
 
+use arc_swap::ArcSwap;
 use tonic::transport::Server;
 use tonic_reflection::server::Builder as ReflectionBuilder;
 use tracing::info;
@@ -44,7 +45,7 @@ impl ServerConfig {
 pub async fn start_server<L: RateLimiter + 'static>(
     config: ServerConfig,
     limiter: Arc<L>,
-    config_cache: Arc<ConfigCache>,
+    config_cache: Arc<ArcSwap<ConfigCache>>,
 ) -> Result<()> {
     let addr = config.addr().parse()
         .map_err(|e| crate::errors::RateLimitError::InternalError(

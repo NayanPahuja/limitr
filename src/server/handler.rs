@@ -1,3 +1,4 @@
+use arc_swap::ArcSwap;
 use tonic::{Request, Response, Status};
 use tracing::{info,debug};
 use std::sync::Arc;
@@ -16,13 +17,13 @@ use generated::{
 
 pub struct RateLimiterServiceImpl<L : RateLimiter>{
     limiter : Arc<L>,
-    config_cache : Arc<ConfigCache>,
+    config_cache : Arc<ArcSwap<ConfigCache>>,
 }
 
 
 
 impl<L: RateLimiter> RateLimiterServiceImpl<L> {
-    pub fn new(limiter: Arc<L>, config_cache: Arc<ConfigCache>) -> Self {
+    pub fn new(limiter: Arc<L>, config_cache: Arc<ArcSwap<ConfigCache>>) -> Self {
         Self {
             limiter,
             config_cache,
@@ -60,7 +61,7 @@ impl<L: RateLimiter + 'static> RateLimiterService for RateLimiterServiceImpl<L> 
         };
         
         // Get rate policies for this domain and prefix
-        let policies = self.config_cache.get_policies(domain, prefix);
+        let policies = self.config_cache.load().get_policies(domain, prefix);
         
         debug!(
             "Using {} policies for domain '{}' prefix '{}'",
@@ -98,7 +99,7 @@ impl<L: RateLimiter + 'static> RateLimiterService for RateLimiterServiceImpl<L> 
         
         info!("Received GetCurrentConfig request");
 
-        let config = self.config_cache.get_full_config();
+        let config = self.config_cache.load().get_full_config();
         
         // Convert internal config to proto format
         let proto_configs: Vec<ProtoDomainConfig> = config.domains
