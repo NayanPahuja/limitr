@@ -1,0 +1,37 @@
+services:
+  redis-service:
+    image: redis:7-alpine
+    container_name: redis-service
+    restart: unless-stopped
+    # no ports: defined -> not exposed to host (container-only)
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 2s
+      retries: 5
+
+
+
+  limitr:
+    image: pahujanayan/limitr:v0.1.0
+    container_name: limitr
+    restart: unless-stopped
+    depends_on:
+      - redis-service
+    volumes:
+      - ./config:/app/config:ro
+    environment:
+      - REDIS_CLUSTER_URL=redis://redis-service:6379
+      - REDIS_USE_TLS=false
+      - RATE_LIMIT_CONFIG=/app/config/rate_limit_config.json
+      - GRPC_PORT=50051
+    # Expose gRPC port to host and to the compose network
+    ports:
+      - "50051:50051"
+    # Expose is optional (containers on the same compose network can reach each other without it).
+    expose:
+      - "50051"
+volumes:
+  redis-data:
