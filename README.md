@@ -1,91 +1,130 @@
-
------
 # limitr: A Distributed Rate Limiting Service
 
 ## Overview
 
-**limitr** is a distributed, rate limiting service built in Rust. It provides a gRPC interface and uses Redis/Valkey as a shared backend to enforce complex, multi-rate limiting policies across horizontally scaled services. The core logic is based on a multi-rate leaky bucket algorithm, ensuring smooth traffic shaping and robust protection for downstream systems.
+**limitr** is a distributed rate limiting service built in Rust. It provides a gRPC interface and uses Redis/Valkey as a shared backend to enforce complex, multi-rate limiting policies across horizontally scaled services. The core logic is based on a multi-rate leaky bucket algorithm, ensuring smooth traffic shaping and reliable protection for downstream systems.
 
 ## Features
 
-  * **High Performance**: Built on the Tokio async runtime with an optimized Redis Lua script for atomic operations. Aims for sub-10ms latency per check.
-  * **Distributed & Scalable**: A stateless design allows for seamless horizontal scaling. All state is managed centrally in Redis, enabling consistency across any number of service instances.
-  * **Advanced Rate Limiting**: Implements a multi-rate leaky bucket algorithm, allowing for the simultaneous enforcement of multiple policies (e.g., per-second, per-minute, and per-hour limits) on a single key.
-  * **Configuration Hot-Reloading**: Atomically swaps in new rate limiting rules from a configuration file on-the-fly without service restarts or downtime.
-  * **High Availability**: Employs a "fail-open" strategy by default. If the Redis backend is unavailable, requests are allowed to pass, prioritizing service availability over strict enforcement.
+* **Async and Efficient**: Uses the Tokio async runtime with an optimized Redis Lua script for atomic operations.
+* **Distributed & Scalable**: Stateless by design, enabling horizontal scaling. All rate limit state is managed in Redis for consistency across instances.
+* **Multi-Rate Policies**: Supports multiple concurrent rate limits (e.g., per-second, per-minute, per-hour) for a single key.
+* **Hot Reloading**: Updates rate limit configurations atomically from file without restarting the service.
+* **High Availability**: Employs a "fail-open" strategy—requests pass through if Redis becomes unavailable.
 
 ## Architecture
 
-The service operates on a layered architecture. An incoming gRPC request is handled by a Tonic server, which consults an in-memory configuration cache to retrieve the relevant rate limit policies. It then uses a Redis connection pool to execute an atomic Lua script that updates the bucket state and determines if the request should be allowed.
+The service processes gRPC requests using a Tonic server. Each request checks an in-memory configuration cache to determine applicable rate limits, then executes a Redis Lua script via a connection pool to update state and decide if the request is allowed.
 
-A background task watches the configuration file for changes. Upon modification, it validates and loads the new rules into a new cache instance, which is then atomically swapped with the old one, ensuring all new requests use the updated configuration without interrupting in-flight requests.
+A background watcher monitors the configuration file for changes, validates the new rules, and atomically swaps in the updated configuration. This ensures no interruption for in-flight requests.
 
 ## Technology Stack
 
 | Library | Purpose |
 | :--- | :--- |
-| `tonic` | gRPC server and client framework. |
-| `prost` | Protocol Buffers code generation. |
-| `tokio` | Asynchronous runtime for concurrent operations. |
-| `redis-rs` | The primary client for Redis communication. |
-| `deadpool-redis` | Asynchronous connection pooling for Redis. |
-| `arc-swap` | Atomic, lock-free swapping of `Arc` pointers for hot-reloading. |
-| `notify` | File system watching for configuration changes. |
-| `serde` | Framework for serializing and deserializing Rust data structures. |
-| `tracing` | A framework for instrumenting Rust programs to collect structured, event-based diagnostic information. |
-| `thiserror` | A library for deriving `std::error::Error` implementations. |
+| `tonic` | gRPC server and client framework |
+| `prost` | Protocol Buffers code generation |
+| `tokio` | Asynchronous runtime |
+| `redis-rs` | Redis client library |
+| `deadpool-redis` | Connection pooling for Redis |
+| `arc-swap` | Atomic, lock-free swapping of configuration |
+| `notify` | Watches configuration file changes |
+| `serde` | Serialization and deserialization |
+| `tracing` | Structured logging and diagnostics |
+| `thiserror` | Error handling and reporting |
+
+## Directory Structure
+
+```
+📦 limitr
+├─ .gitignore
+├─ Cargo.toml
+├─ LICENSE
+├─ README.md
+├─ build.rs
+├─ example
+│  └─ config
+│     └─ rate_limit_config.json
+├─ proto
+│  └─ limitr
+│     └─ v1
+│        └─ limitr.proto
+├─ rust-rate-limiter-trd.md
+├─ scripts
+│  └─ leaky_bucket.lua
+└─ src
+   ├─ config
+   │  ├─ loader.rs
+   │  ├─ mod.rs
+   │  ├─ validator.rs
+   │  └─ watcher.rs
+   ├─ errors.rs
+   ├─ lib.rs
+   ├─ limiter
+   │  ├─ leaky_bucket.rs
+   │  └─ mod.rs
+   ├─ main.rs
+   ├─ redis
+   │  ├─ client.rs
+   │  ├─ mod.rs
+   │  ├─ pool.rs
+   │  └─ script.rs
+   └─ server
+      ├─ handler.rs
+      └─ mod.rs
+```
 
 ## How to Use
 
 ### Build from Source
 
-**Prerequisites**:
+**Prerequisites**  
+* Rust toolchain (v1.70+)  
+* Running Redis or Valkey instance  
 
-  * Rust toolchain (v1.70+)
-  * A running Redis or Valkey instance
+1. Clone the repository:
 
-<!-- end list -->
+   ```bash
+   git clone https://github.com/your-repo/limitr.git
+   cd limitr
+   ```
 
-1.  **Clone the repository:**
+2. Set configuration and environment variables:
 
-    ```bash
-    git clone https://github.com/your-repo/limitr.git
-    cd limitr
-    ```
+   ```bash
+   export RATE_LIMIT_CONFIG=./config/rate_limits.json
+   export REDIS_CLUSTER_URL=redis://127.0.0.1:6379
+   export GRPC_PORT=50051
+   ```
 
-2.  **Configure the service:**
-    Create a `config/rate_limits.json` file for your policies. Set the required environment variables, primarily `REDIS_CLUSTER_URL`.
+3. Build and run:
 
-    ```bash
-    export RATE_LIMIT_CONFIG=./config/rate_limits.json
-    export REDIS_CLUSTER_URL=redis://127.0.0.1:6379
-    export GRPC_PORT=50051
-    ```
+   ```bash
+   cargo run --release
+   ```
 
-3.  **Build and run the service:**
+   The gRPC server starts on the configured port.
 
-    ```bash
-    cargo run --release
-    ```
+*(Docker support planned for a later milestone.)*
 
-    The gRPC server will start on the configured host and port.
+## Algorithm Reference
 
-*(Docker support will be added in a future milestone for easier deployment.)*
-
-## References
-
-The core rate limiting logic is an implementation of the **Multi-Rate Leaky Bucket Algorithm** as described by Microsoft, which allows for enforcing multiple leak rates and burst capacities in parallel for a single key. The state is efficiently stored in Redis using MessagePack for binary serialization.
+The rate limiting logic follows the **Multi-Rate Leaky Bucket Algorithm** (Microsoft’s implementation), enforcing multiple limits per key while storing state efficiently in Redis using MessagePack serialization.
 
 ## Project Milestones
 
-  * [x] **1. Setup Project with cargo workspace and add Dependencies**
-  * [x] **2. Setup Proto and build them**
-  * [x] **3. Define Standard Errors as decided**
-  * [x] **4. Setup a grpc server that works with proto and exposes decided methods and a health check method**
-  * [x] **5. Define configs (mod.rs) for config, limiter and redis modules**
-  * [x] **6. Config Parsing from file with validation**
-  * [x] **7. Define traits for all modules**
-  * [x] **8. Write redis layer functionality module and test redis connection script**
-  * [x] **9. Write limiter layer functionality module**
-  * [x] **10. Hot reloading for config**
-  * [ ] **11. Metrics Emission (prometheus standard)**
+* [x] Setup project and dependencies  
+* [x] Setup Proto definitions and build  
+* [x] Define standard errors  
+* [x] Implement gRPC server and health check  
+* [x] Implement config modules and validation  
+* [x] Implement Redis layer and test connection  
+* [x] Implement limiter logic  
+* [x] Add configuration hot reloading  
+* [ ] Add Prometheus metrics
+
+## License
+
+This project is licensed under the **Apache License V2**.  
+See the [LICENSE](./LICENSE) file for details.
+````
