@@ -27,11 +27,14 @@ services:
       - REDIS_USE_TLS=false
       - RATE_LIMIT_CONFIG=/app/config/rate_limit_config.json
       - GRPC_PORT=50051
+      - METRICS_PORT=9090
     # Expose gRPC port to host and to the compose network
     ports:
       - "50051:50051"
+      - "9090:9090"
     # Expose is optional (containers on the same compose network can reach each other without it).
     expose:
       - "50051"
+      - "9090"
 volumes:
   redis-data:
