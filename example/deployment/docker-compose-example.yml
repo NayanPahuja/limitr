@@ -15,7 +15,7 @@ services:
 
 
   limitr:
-    image: pahujanayan/limitr:v0.1.0
+    image: pahujanayan/limitr:latest
     container_name: limitr
     restart: unless-stopped
     depends_on:
