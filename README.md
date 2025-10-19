@@ -139,8 +139,7 @@ The rate limiting logic follows the **Multi-Rate Leaky Bucket Algorithm**, enfor
 * [x] Implement Redis layer and test connection  
 * [x] Implement limiter logic  
 * [x] Add configuration hot reloading  
-* [ ] Add Prometheus metrics
-
+* [x] Add Prometheus metrics
 ## License
 
 This project is licensed under the **Apache 2.0 License**.  
