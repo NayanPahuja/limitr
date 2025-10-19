@@ -1,8 +1,8 @@
-use crate::config::{AppConfig, RedisConfig, RateLimitConfig, ConfigCache};
 use crate::config::validator::validate_config;
+use crate::config::{AppConfig, ConfigCache, RateLimitConfig, RedisConfig};
 use crate::errors::{RateLimitError, Result};
 use std::path::Path;
-use tracing::{info, debug};
+use tracing::{debug, info};
 
 /// Load rate limit configuration from JSON file
 pub async fn load_rate_limit_config_from_file<P: AsRef<Path>>(path: P) -> Result<RateLimitConfig> {
@@ -15,8 +15,8 @@ pub async fn load_rate_limit_config_from_file<P: AsRef<Path>>(path: P) -> Result
         .map_err(|e| RateLimitError::FileSystemError(e))?;
 
     // Parse JSON
-    let config: RateLimitConfig = serde_json::from_str(&contents)
-        .map_err(|e| RateLimitError::JsonError(e))?;
+    let config: RateLimitConfig =
+        serde_json::from_str(&contents).map_err(|e| RateLimitError::JsonError(e))?;
 
     // Validate the rate-limit config by embedding into a temporary AppConfig
     // so we can reuse the existing validate_config which accepts AppConfig.
@@ -29,6 +29,7 @@ pub async fn load_rate_limit_config_from_file<P: AsRef<Path>>(path: P) -> Result
     info!("Rate limit configuration loaded and validated successfully");
     log_rate_limit_config_summary(&config);
 
+    crate::metrics::update_config_metrics(config.domains.len());
     Ok(config)
 }
 
@@ -81,8 +82,14 @@ fn log_config_summary(config: &AppConfig) {
     info!("Redis URL: {}", redis_url_safe);
     info!("Redis TLS: {}", config.redis.use_tls);
     info!("Redis Max Connections: {}", config.redis.max_connections);
-    info!("Redis Connection Timeout: {}s", config.redis.connection_timeout_secs);
-    info!("Redis Command Timeout: {}s", config.redis.command_timeout_secs);
+    info!(
+        "Redis Connection Timeout: {}s",
+        config.redis.connection_timeout_secs
+    );
+    info!(
+        "Redis Command Timeout: {}s",
+        config.redis.command_timeout_secs
+    );
 
     // Rate limit config
     info!("Rate Limit Domains: {}", config.rate_limits.domains.len());
@@ -98,9 +105,7 @@ fn log_config_summary(config: &AppConfig) {
         for policy in &domain_config.policies {
             info!(
                 "    - {}: {:.2} tokens/sec, burst: {}",
-                policy.name,
-                policy.flow_rate_per_second,
-                policy.burst_capacity
+                policy.name, policy.flow_rate_per_second, policy.burst_capacity
             );
         }
     }
@@ -116,9 +121,7 @@ fn log_config_summary(config: &AppConfig) {
     for policy in &config.rate_limits.default.policies {
         info!(
             "  - {}: {:.2} tokens/sec, burst: {}",
-            policy.name,
-            policy.flow_rate_per_second,
-            policy.burst_capacity
+            policy.name, policy.flow_rate_per_second, policy.burst_capacity
         );
     }
 
@@ -141,9 +144,7 @@ fn log_rate_limit_config_summary(config: &RateLimitConfig) {
         for policy in &domain_config.policies {
             debug!(
                 "    - {}: {:.2} tokens/sec, burst: {}",
-                policy.name,
-                policy.flow_rate_per_second,
-                policy.burst_capacity
+                policy.name, policy.flow_rate_per_second, policy.burst_capacity
             );
         }
     }
@@ -158,9 +159,7 @@ fn log_rate_limit_config_summary(config: &RateLimitConfig) {
     for policy in &config.default.policies {
         debug!(
             "  - {}: {:.2} tokens/sec, burst: {}",
-            policy.name,
-            policy.flow_rate_per_second,
-            policy.burst_capacity
+            policy.name, policy.flow_rate_per_second, policy.burst_capacity
         );
     }
     debug!("===============================");
@@ -172,7 +171,10 @@ fn log_redis_config_summary(config: &RedisConfig) {
     info!("Redis URL: {}", redis_url_safe);
     info!("Redis TLS: {}", config.use_tls);
     info!("Redis Max Connections: {}", config.max_connections);
-    info!("Redis Connection Timeout: {}s", config.connection_timeout_secs);
+    info!(
+        "Redis Connection Timeout: {}s",
+        config.connection_timeout_secs
+    );
     info!("Redis Command Timeout: {}s", config.command_timeout_secs);
 }
 
