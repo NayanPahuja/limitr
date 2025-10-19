@@ -2,6 +2,7 @@ pub mod config;
 pub mod errors;
 pub mod limiter;
 pub mod metrics;
+pub mod metrics_server;
 pub mod redis;
 pub mod server;
 pub mod generated {

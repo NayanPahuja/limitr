@@ -1,12 +1,12 @@
-use limitr::{ServerConfig};
-use limitr::config::loader::{load_config, build_config_cache};
-use limitr::config::watcher::{watch_config_file};
-use limitr::redis::pool::create_redis_pool;
-use limitr::redis::client::RedisClientImpl;
-use limitr::limiter::leaky_bucket::LeakyBucketLimiter;
-use std::sync::Arc;
-use std::path::PathBuf; // NEW: Import PathBuf
 use arc_swap::ArcSwap; // NEW: Import ArcSwap
+use limitr::ServerConfig;
+use limitr::config::loader::{build_config_cache, load_config};
+use limitr::config::watcher::watch_config_file;
+use limitr::limiter::leaky_bucket::LeakyBucketLimiter;
+use limitr::redis::client::RedisClientImpl;
+use limitr::redis::pool::create_redis_pool;
+use std::path::PathBuf; // NEW: Import PathBuf
+use std::sync::Arc;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
@@ -31,8 +31,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let initial_cache = build_config_cache(&app_config);
     // CHANGED: Wrap the cache in ArcSwap to allow for hot-reloading
     let config_cache = Arc::new(ArcSwap::new(Arc::new(initial_cache)));
-    tracing::info!("Configuration cache built with {} domains",
-        app_config.rate_limits.domains.len());
+    tracing::info!(
+        "Configuration cache built with {} domains",
+        app_config.rate_limits.domains.len()
+    );
 
     // NEW: Spawn the configuration watcher as a background task
     let config_path_str = std::env::var("RATE_LIMIT_CONFIG")
@@ -67,6 +69,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Load server configuration from environment
     let server_config = ServerConfig::from_env();
     tracing::info!("Server will listen on: {}", server_config.addr());
+
+    // Start metrics server in background
+    // Start metrics server in background
+    let metrics_port = std::env::var("METRICS_PORT")
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(9090);
+
+    tokio::spawn(async move {
+        if let Err(e) = limitr::metrics_server::start_metrics_server(metrics_port).await {
+            tracing::error!("Metrics server error: {}", e);
+        }
+    });
+
+    tracing::info!(
+        "Metrics available at http://0.0.0.0:{}/metrics",
+        metrics_port
+    );
 
     // Start the gRPC server
     // CHANGED: Pass the new Arc<ArcSwap<ConfigCache>> type

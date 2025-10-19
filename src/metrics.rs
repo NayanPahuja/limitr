@@ -1,7 +1,7 @@
 use lazy_static::lazy_static;
 use prometheus::{
-    CounterVec, Encoder, GaugeVec, HistogramVec, IntCounterVec, TextEncoder, register_counter_vec,
-    register_gauge_vec, register_histogram_vec, register_int_counter_vec,
+    register_counter_vec, register_histogram_vec, register_int_counter_vec,
+    register_gauge, CounterVec, HistogramVec, IntCounterVec, Gauge
 };
 
 lazy_static! {
@@ -73,17 +73,16 @@ lazy_static! {
         vec![0.0, 1.0, 2.0, 3.0, 4.0]
     ).unwrap();
 
-    // Config metrics
+    // Config metrics (no labels)
     pub static ref CONFIG_RELOADS_TOTAL: CounterVec = register_counter_vec!(
         "rate_limiter_config_reloads_total",
         "Total number of configuration reloads",
         &["result"]
     ).unwrap();
 
-    pub static ref ACTIVE_DOMAINS: GaugeVec = register_gauge_vec!(
+    pub static ref ACTIVE_DOMAINS: Gauge = register_gauge!(
         "rate_limiter_active_domains_total",
-        "Number of active domains configured",
-        &[]
+        "Number of active domains configured"
     ).unwrap();
 }
 
@@ -93,7 +92,7 @@ pub fn record_request(domain: &str, prefix: &str, allowed: bool, duration_secs: 
     REQUESTS_TOTAL
         .with_label_values(&[domain, prefix, allowed_str])
         .inc();
-
+    
     REQUEST_DURATION
         .with_label_values(&[domain, prefix, allowed_str])
         .observe(duration_secs);
@@ -104,7 +103,7 @@ pub fn record_denied(domain: &str, prefix: &str, deny_count: i64) {
     REQUESTS_DENIED_TOTAL
         .with_label_values(&[domain, prefix])
         .inc();
-
+    
     DENY_COUNT_TOTAL
         .with_label_values(&[domain, prefix])
         .inc_by(deny_count as u64);
@@ -140,7 +139,9 @@ pub fn record_redis_duration(command: &str, duration_secs: f64) {
 
 /// Record Redis error
 pub fn record_redis_error(error_type: &str) {
-    REDIS_ERRORS_TOTAL.with_label_values(&[error_type]).inc();
+    REDIS_ERRORS_TOTAL
+        .with_label_values(&[error_type])
+        .inc();
 }
 
 /// Record script execution
@@ -151,24 +152,16 @@ pub fn record_script_execution(success: bool) {
         .inc();
 }
 
+
 /// Update config metrics
 pub fn update_config_metrics(domain_count: usize) {
-    ACTIVE_DOMAINS
-        .with_label_values(&["total"])
-        .set(domain_count as f64);
+    ACTIVE_DOMAINS.set(domain_count as f64);
 }
 
 /// Record config reload
 pub fn record_config_reload(success: bool) {
     let result = if success { "success" } else { "error" };
-    CONFIG_RELOADS_TOTAL.with_label_values(&[result]).inc();
-}
-
-/// Gather and encode all metrics in Prometheus text format
-pub fn gather_metrics() -> Result<String, Box<dyn std::error::Error>> {
-    let encoder = TextEncoder::new();
-    let metric_families = prometheus::gather();
-    let mut buffer = Vec::new();
-    encoder.encode(&metric_families, &mut buffer)?;
-    Ok(String::from_utf8(buffer)?)
+    CONFIG_RELOADS_TOTAL
+        .with_label_values(&[result])
+        .inc();
 }
