@@ -3,8 +3,8 @@
 //! - Watches a single JSON file using notify::RecommendedWatcher.
 //! - On create/modify events, attempts to reload/validate and atomically replace the cache.
 
-use crate::config::loader::load_rate_limit_config_from_file;
 use crate::config::ConfigCache;
+use crate::config::loader::load_rate_limit_config_from_file;
 use crate::errors::RateLimitError;
 use arc_swap::ArcSwap;
 use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher};
@@ -58,6 +58,7 @@ pub async fn watch_config_file(
                 }
             }
             Err(e) => {
+                crate::metrics::record_config_reload(false);
                 // Errors from `notify` can be significant.
                 error!("Error watching config file: {}", e);
             }
@@ -89,16 +90,32 @@ async fn reload_config(path: &Path, shared_cache: &Arc<ArcSwap<ConfigCache>>) {
             // This is crucial for service stability.
             match e {
                 RateLimitError::FileSystemError(io_err) => {
-                    error!("Failed to read config file '{}': {}. Keeping old config.", path.display(), io_err);
+                    error!(
+                        "Failed to read config file '{}': {}. Keeping old config.",
+                        path.display(),
+                        io_err
+                    );
                 }
                 RateLimitError::JsonError(json_err) => {
-                    error!("Failed to parse JSON from '{}': {}. Keeping old config.", path.display(), json_err);
+                    error!(
+                        "Failed to parse JSON from '{}': {}. Keeping old config.",
+                        path.display(),
+                        json_err
+                    );
                 }
                 RateLimitError::ConfigurationError(validation_err) => {
-                    error!("New configuration in '{}' is invalid: {}. Keeping old config.", path.display(), validation_err);
+                    error!(
+                        "New configuration in '{}' is invalid: {}. Keeping old config.",
+                        path.display(),
+                        validation_err
+                    );
                 }
                 _ => {
-                    error!("An unexpected error occurred while reloading config: {}. Keeping old config.", e);
+                    crate::metrics::record_config_reload(false);
+                    error!(
+                        "An unexpected error occurred while reloading config: {}. Keeping old config.",
+                        e
+                    );
                 }
             }
             return;
@@ -113,5 +130,6 @@ async fn reload_config(path: &Path, shared_cache: &Arc<ArcSwap<ConfigCache>>) {
     // The `store` method performs the atomic replacement. All existing readers
     // will finish with the old `Arc`, and new readers will get the new one.
     shared_cache.store(Arc::new(new_cache));
+    crate::metrics::record_config_reload(true);
     info!("Configuration hot-reloaded successfully. Service is now using the new settings.");
 }
