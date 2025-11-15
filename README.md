@@ -2,7 +2,7 @@
 
 ## Overview
 
-**limitr** is a distributed rate limiting service built in Rust. It provides a gRPC interface and uses Redis/Valkey as a shared backend to enforce complex, multi-rate limiting policies across horizontally scaled services. The core logic is based on a multi-rate leaky bucket algorithm, ensuring smooth traffic shaping and reliable protection for downstream systems.
+**limitr** is a distributed rate limiting service built in Rust. It provides a gRPC interface and uses Redis/Valkey as a shared backend to enforce complex, multi-rate limiting policies across horizontally scaled services. The core logic is based on a multi-rate token bucket algorithm, ensuring smooth traffic shaping and reliable protection for downstream systems.
 
 ## Features
 
@@ -127,7 +127,7 @@ A background watcher monitors the configuration file for changes, validates the 
 
 ## Algorithm Reference
 
-The rate limiting logic follows the **Multi-Rate Leaky Bucket Algorithm**, enforcing multiple limits per key while storing state efficiently in Redis using MessagePack serialization.
+The rate limiting logic follows the **Multi-Rate Token Bucket Algorithm**, enforcing multiple limits per key while storing state efficiently in Redis using MessagePack serialization.
 
 ## Project Milestones
 
